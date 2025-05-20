@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Game</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { height: 100%; font-family: Arial, sans-serif; }
+    body {
+      background-color: #003366;
+      color: white;
+      text-align: center;
+    }
+    h1 {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+      color: #ffcc00;
+      text-shadow: 2px 2px 4px #000;
+    }
+    .game-container {
+      width: 80%;
+      max-width: 600px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      border-radius: 10px;
+      margin: 20px auto;
+    }
+    .game-board {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 20px;
+      grid-template-columns: repeat(4, 80px);
+    }
+    .card {
+      width: 80px;
+      height: 80px;
+      background-color: #0078d4;
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+      transform-style: preserve-3d;
+      transform: rotateY(180deg);
+      transition: transform 0.5s;
+    }
+    .card.revealed {
+      transform: rotateY(0deg);
+    }
+    .card .front, .card .back {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      backface-visibility: hidden;
+      border-radius: 10px;
+    }
+    .card .front {
+      background-color: #0078d4;
+    }
+    .card .back {
+      background-color: #ffcc00;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2rem;
+    }
+    .scoreboard {
+      margin-bottom: 20px;
+    }
+    .scoreboard span {
+      font-size: 1.2rem;
+    }
+    .btn {
+      padding: 10px 20px;
+      background-color: #ffcc00;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+      margin: 10px;
+    }
+    .btn:hover {
+      background-color: #ff9900;
+    }
+    .screen {
+      display: none;
+    }
+    .active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Schermata di benvenuto -->
+  <div id="introScreen" class="screen active">
+    <h1>🎮 Benvenuto a Memory!</h1>
+    <p>
+      Metti alla prova la tua memoria! <br><br>
+      Modalità "Gioca da solo" ti fa sfidare il computer.<br>
+      Modalità "Gioca con amici" fino a 4 giocatori.<br>
+      Modalità "A Tempo" finché il tempo non scade.<br>
+      Modalità "Penalità" ti toglie punti per errori.<br><br>
+      Scegli la modalità e buon divertimento!
+    </p>
+    <button class="btn" onclick="selectMode('solo')">Gioca da solo 🧠</button>
+    <button class="btn" onclick="selectMode('multi')">Gioca con amici 👨‍👨‍👧‍👧</button>
+    <button class="btn" onclick="selectMode('time')">Modalità a Tempo ⏰</button>
+    <button class="btn" onclick="selectMode('penalty')">Modalità Penalità 🛑</button>
+  </div>
+
+  <!-- Modalità singolo giocatore -->
+  <div id="soloSettings" class="screen">
+    <h2>Seleziona difficoltà</h2>
+    <button class="btn" onclick="startGame('easy')">Facile (12 carte)</button>
+    <button class="btn" onclick="startGame('medium')">Media (15 carte)</button>
+    <button class="btn" onclick="startGame('hard')">Difficile (20 carte)</button>
+  </div>
+
+  <!-- Modalità multiplayer -->
+  <div id="multiSettings" class="screen">
+    <h2>Inserisci i nomi dei giocatori (max 4)</h2>
+    <div id="playerInputs">
+      <input placeholder="Giocatore 1">
+      <input placeholder="Giocatore 2">
+    </div>
+    <button class="btn" onclick="addPlayer()">+ Aggiungi giocatore</button>
+    <button class="btn" onclick="startMultiplayer()">Inizia partita</button>
+  </div>
+
+  <!-- Schermata del gioco -->
+  <div class="game-container" id="gameScreen">
+    <h1>Memory Game</h1>
+    <div class="scoreboard">
+      <span id="score"></span>
+    </div>
+    <div class="game-board" id="gameBoard"></div>
+    <button class="btn" onclick="location.reload()">Torna al Menu</button>
+  </div>
+
+  <script>
+    const screens = document.querySelectorAll('.screen');
+    const board = document.getElementById('gameBoard');
+    const scoreDisplay = document.getElementById('score');
+    const playerInputs = document.getElementById('playerInputs');
+    const emojis = ['🐶','🐱','🦁','🐮','🐸','🐵','🐰','🦄','🐷','🦊','🐔','🦓','🐧','🐢','🦉'];
+
+    let gameMode = '', difficulty = '';
+    let gameTimer = 60;
+    let timerInterval;
+    let numPairs = 0, cards = [], revealed = [], matched = [];
+    let players = [], currentPlayer = 0;
+
+    function showScreen(id) {
+      screens.forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function selectMode(mode) {
+      gameMode = mode;
+      currentPlayer = 0;
+      showScreen(mode === 'solo' ? 'soloSettings' : 'multiSettings');
+    }
+
+    function addPlayer() {
+      if (playerInputs.children.length >= 4) return alert("Massimo 4 giocatori");
+      const input = document.createElement('input');
+      input.placeholder = "Giocatore " + (playerInputs.children.length + 1);
+      playerInputs.appendChild(input);
+    }
+
+    function startMultiplayer() {
+      const inputs = Array.from(playerInputs.querySelectorAll('input'));
+      if (inputs.length < 2) return alert("Minimo 2 giocatori");
+      players = inputs.map((input, i) => ({
+        name: input.value.trim() || `Giocatore ${i + 1}`,
+        score: 0
+      }));
+      numPairs = 10;
+      setupGame();
+    }
+
+    function startGame(diff) {
+      difficulty = diff;
+      currentPlayer = 0;
+      players = [
+        { name: "Tu", score: 0 },
+        { name: "Computer", score: 0 }
+      ];
+      numPairs = { easy: 6, medium: 8, hard: 10 }[diff];
+      setupGame();
+    }
+
+    function setupGame() {
+      showScreen('gameScreen');
+      board.innerHTML = '';
+      matched = [];
+      revealed = [];
+      cards = [];
+
+      const selected = emojis.slice(0, numPairs);
+      const all = [...selected, ...selected].sort(() => Math.random() - 0.5);
+      const cols = Math.ceil(Math.sqrt(all.length));
+      board.style.gridTemplateColumns = `repeat(${cols}, 80px)`;
+
+      all.forEach((emoji, i) => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.dataset.value = emoji;
+        div.onclick = () => flipCard(div);
+        const front = document.createElement('div');
+        front.classList.add('front');
+        const back = document.createElement('div');
+        back.classList.add('back');
+        back.textContent = emoji;
+        div.appendChild(front);
+        div.appendChild(back);
+        board.appendChild(div);
+        cards.push(div);
+      });
+
+      updateScore();
+
+      if (gameMode === 'time') startTimer();
+      if (gameMode === 'solo' && currentPlayer === 1) setTimeout(computerTurn, 800);
+    }
+
+    function startTimer() {
+      gameTimer = 60;
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (gameTimer <= 0 || matched.length === cards.length) {
+          clearInterval(timerInterval);
+          showWinner();
+        } else {
+          gameTimer--;
+          updateScore();
+        }
+      }, 1000);
+    }
+
+    function flipCard(card) {
+      if (revealed.length === 2 || card.classList.contains('revealed') || matched.includes(card)) return;
+      card.classList.add('revealed');
+      revealed.push(card);
+      if (revealed.length === 2) setTimeout(checkMatch, 700);
+    }
+
+    function checkMatch() {
+      const [a, b] = revealed;
+      if (a.dataset.value === b.dataset.value) {
+        matched.push(a, b);
+        players[currentPlayer].score++;
+        if (matched.length === cards.length) return showWinner();
+      } else {
+        a.classList.remove('revealed');
+        b.classList.remove('revealed');
+        if (gameMode === 'penalty') players[currentPlayer].score--;
+      }
+      revealed = [];
+      currentPlayer = (currentPlayer + 1) % players.length;
+      updateScore();
+      if (gameMode === 'solo' && currentPlayer === 1) setTimeout(computerTurn, 800);
+    }
+
+    function computerTurn() {
+      const unflipped = cards.filter(c => !c.classList.contains('revealed') && !matched.includes(c));
+      if (unflipped.length < 2) return;
+      const first = unflipped.splice(Math.floor(Math.random() * unflipped.length), 1)[0];
+      const second = unflipped[Math.floor(Math.random() * unflipped.length)];
+      flipCard(first);
+      setTimeout(() => flipCard(second), 400);
+    }
+
+    function updateScore() {
+      let scoreText = players.map(p => `<strong>${p.name}</strong>: ${p.score}`).join(' | ');
+      if (gameMode === 'time') scoreText += ` | ⏰ Tempo: ${gameTimer}s`;
+      scoreDisplay.innerHTML = scoreText;
+    }
+
+    function showWinner() {
+      clearInterval(timerInterval);
+      const winner = players.reduce((a, b) => a.score > b.score ? a : b);
+      alert(`${winner.name} ha vinto con ${winner.score} punti!`);
+    }
+  </script>
+</body>
+</html>
